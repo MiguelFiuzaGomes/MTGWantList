@@ -1,4 +1,6 @@
+using MTGWantList.Models.MtgJson;
 using MTGWantList.Services.MtgJson;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,12 +36,16 @@ app.UseHttpsRedirection();
 app.MapGet("/api/mtgjson/set/{setCode}",
     async (string setCode, MtgJsonClient mtgJsonClient) =>
     {
-        // Ask the MTGJSON client to download the requested set.
-        string json = await mtgJsonClient.GetSetAsync(setCode);
+        MtgJsonSetResponse? set =
+            await mtgJsonClient.GetSetAsync(setCode);
 
-        // Return the MTGJSON response as JSON rather than plain text.
-        return Results.Content(json, "application/json");
+        // If MTGJSON returned no usable data, return HTTP 404.
+        if (set is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(set);
     });
-
 // Start the ASP.NET application.
 app.Run();

@@ -1,9 +1,10 @@
-﻿namespace MTGWantList.Services.MtgJson;
+﻿using System.Net.Http.Json;
+using MTGWantList.Models.MtgJson;
+
+namespace MTGWantList.Services.MtgJson;
 
 public class MtgJsonClient
 {
-    // HttpClient is provided by ASP.NET through dependency injection.
-    // We use it to make HTTP requests to the MTGJSON API.
     private readonly HttpClient _httpClient;
 
     public MtgJsonClient(HttpClient httpClient)
@@ -11,17 +12,14 @@ public class MtgJsonClient
         _httpClient = httpClient;
     }
 
-    // Downloads the raw JSON data for a specific Magic set.
-    // Example:
-    // "FDN" -> https://mtgjson.com/api/v5/FDN.json
-    public async Task<string> GetSetAsync(string setCode)
+    // Downloads and deserializes a specific MTGJSON set.
+    public async Task<MtgJsonSetResponse?> GetSetAsync(string setCode)
     {
-        // MTGJSON set codes are conventionally uppercase,
-        // so we normalise the input before building the URL.
         string url =
             $"https://mtgjson.com/api/v5/{setCode.ToUpperInvariant()}.json";
 
-        // Download the response body and return it as raw JSON text.
-        return await _httpClient.GetStringAsync(url);
+        // GetFromJsonAsync downloads the response and uses System.Text.Json
+        // to convert it directly into our C# model.
+        return await _httpClient.GetFromJsonAsync<MtgJsonSetResponse>(url);
     }
 }
