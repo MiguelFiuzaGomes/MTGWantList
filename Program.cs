@@ -1,6 +1,8 @@
 using MTGWantList.Models.MtgJson;
 using MTGWantList.Services.MtgJson;
 
+using Microsoft.EntityFrameworkCore;
+using MTGWantList.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +15,14 @@ builder.Services.AddOpenApi();
 // AddHttpClient automatically creates and manages the HttpClient
 // that MtgJsonClient requires in its constructor.
 builder.Services.AddHttpClient<MtgJsonClient>();
+
+// Register the application's EF Core database context.
+//
+// UseNpgsql tells Entity Framework Core that PostgreSQL
+// is the database provider we want to use.
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
@@ -33,19 +43,40 @@ app.UseHttpsRedirection();
 //
 // Example request:
 // GET /api/mtgjson/set/FDN
-app.MapGet("/api/mtgjson/set/{setCode}",
-    async (string setCode, MtgJsonClient mtgJsonClient) =>
+app.MapGet("/api/mtgjson/set/{setCode}/card/{cardName}",
+    async (string setCode, string cardName, MtgJsonClient mtgJsonClient) =>
     {
         MtgJsonSetResponse? set =
             await mtgJsonClient.GetSetAsync(setCode);
 
-        // If MTGJSON returned no usable data, return HTTP 404.
         if (set is null)
         {
             return Results.NotFound();
         }
 
-        return Results.Ok(set);
+        // Find the first card whose full name matches the supplied value,
+        // or whose combined name begins with the supplied front-face name.
+        //
+        // This is useful for double-faced cards such as:
+        // "Delver of Secrets // Insectile Aberration"
+        MtgJsonCard? card = set.Data.Cards.FirstOrDefault(card =>
+        string.Equals(
+            card.Name,
+            cardName,
+            StringComparison.OrdinalIgnoreCase)
+        ||
+        card.Name.StartsWith(
+            $"{cardName} //",
+            StringComparison.OrdinalIgnoreCase));
+
+        if (card is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(card);
     });
+
+
 // Start the ASP.NET application.
 app.Run();

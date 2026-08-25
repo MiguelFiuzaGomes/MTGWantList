@@ -4,15 +4,15 @@ namespace MTGWantList.Models.MtgJson;
 
 public class MtgJsonCard
 {
-    // MTGJSON's unique identifier for this printing.
+    // MTGJSON's unique identifier for this particular printing.
     [JsonPropertyName("uuid")]
     public string Uuid { get; set; } = string.Empty;
 
-    // Card name.
+    // Oracle/card name used by the English printing.
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    // Collector number within the set.
+    // Collector number inside the set.
     [JsonPropertyName("number")]
     public string Number { get; set; } = string.Empty;
 
@@ -20,7 +20,16 @@ public class MtgJsonCard
     [JsonPropertyName("rarity")]
     public string? Rarity { get; set; }
 
-    // Language of this printing.
-    [JsonPropertyName("language")]
-    public string? Language { get; set; }
+    // Available physical finishes for this printing.
+    // MTGJSON can list multiple finishes for the same card.
+    [JsonPropertyName("finishes")]
+    public List<string> Finishes { get; set; } = [];
+
+    // External identifiers such as Scryfall and Cardmarket IDs.
+    [JsonPropertyName("identifiers")]
+    public MtgJsonIdentifiers Identifiers { get; set; } = new();
+
+    // Alternate-language versions of this printing.
+    [JsonPropertyName("foreignData")]
+    public List<MtgJsonForeignData> ForeignData { get; set; } = [];
 }
