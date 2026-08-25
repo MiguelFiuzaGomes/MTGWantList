@@ -32,4 +32,14 @@ public class MtgJsonCard
     // Alternate-language versions of this printing.
     [JsonPropertyName("foreignData")]
     public List<MtgJsonForeignData> ForeignData { get; set; } = [];
+    
+    // Language of the main card record.
+    // For most normal set files this will be "English".
+    [JsonPropertyName("language")]
+    public string Language { get; set; } = string.Empty;
+
+    // Contains the IDs of the physical finish variants
+    // that actually exist for this language.
+    [JsonPropertyName("skuIds")]
+    public MtgJsonSkuIds SkuIds { get; set; } = new();
 }

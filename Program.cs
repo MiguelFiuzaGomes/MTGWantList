@@ -77,6 +77,26 @@ app.MapGet("/api/mtgjson/set/{setCode}/card/{cardName}",
         return Results.Ok(card);
     });
 
+// Temporary endpoint used to verify that EF Core can connect
+// successfully to our PostgreSQL database.
+//
+// Example:
+// GET /api/database/test
+app.MapGet("/api/database/test",
+    async (AppDbContext dbContext) =>
+    {
+        // Ask EF Core whether it can open a connection
+        // to the configured PostgreSQL database.
+        bool canConnect = await dbContext.Database.CanConnectAsync();
+
+        if (!canConnect)
+        {
+            return Results.Problem(
+                "Could not connect to the PostgreSQL database.");
+        }
+
+        return Results.Ok("Database connection successful.");
+    });
 
 // Start the ASP.NET application.
 app.Run();

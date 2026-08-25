@@ -20,4 +20,9 @@ public class MtgJsonForeignData
     // to this language variant.
     [JsonPropertyName("identifiers")]
     public MtgJsonIdentifiers Identifiers { get; set; } = new();
+    
+    // Contains the physical finish variants that actually
+    // exist for this translated version of the printing.
+    [JsonPropertyName("skuIds")]
+    public MtgJsonSkuIds SkuIds { get; set; } = new();
 }
