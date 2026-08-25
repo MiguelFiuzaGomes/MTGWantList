@@ -1,41 +1,45 @@
+using MTGWantList.Services.MtgJson;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// Register ASP.NET's OpenAPI support.
+// This will later let us inspect and test our API endpoints.
 builder.Services.AddOpenApi();
+
+// Register MtgJsonClient with ASP.NET's dependency injection system.
+//
+// AddHttpClient automatically creates and manages the HttpClient
+// that MtgJsonClient requires in its constructor.
+builder.Services.AddHttpClient<MtgJsonClient>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Only expose the generated OpenAPI document while developing.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
+// Redirect HTTP requests to HTTPS.
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
+// Temporary test endpoint for the MTGJSON client.
+//
+// The {setCode} part of the route is supplied by the user.
+// ASP.NET also provides our registered MtgJsonClient automatically
+// through dependency injection.
+//
+// Example request:
+// GET /api/mtgjson/set/FDN
+app.MapGet("/api/mtgjson/set/{setCode}",
+    async (string setCode, MtgJsonClient mtgJsonClient) =>
     {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+        // Ask the MTGJSON client to download the requested set.
+        string json = await mtgJsonClient.GetSetAsync(setCode);
 
+        // Return the MTGJSON response as JSON rather than plain text.
+        return Results.Content(json, "application/json");
+    });
+
+// Start the ASP.NET application.
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
