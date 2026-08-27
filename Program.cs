@@ -4,6 +4,10 @@ using MTGWantList.Services.MtgJson;
 using Microsoft.EntityFrameworkCore;
 using MTGWantList.Data;
 
+using MTGWantList.Models.Catalogue;
+
+using MTGWantList.Models.Import;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Register ASP.NET's OpenAPI support.
@@ -15,6 +19,13 @@ builder.Services.AddOpenApi();
 // AddHttpClient automatically creates and manages the HttpClient
 // that MtgJsonClient requires in its constructor.
 builder.Services.AddHttpClient<MtgJsonClient>();
+
+// Register the MTGJSON catalogue importer.
+//
+// Scoped means ASP.NET creates one importer for each HTTP request.
+// This matches AppDbContext's lifetime, since the importer uses
+// the database context internally.
+builder.Services.AddScoped<MtgJsonCatalogueImporter>();
 
 // Register the application's EF Core database context.
 //
@@ -77,6 +88,8 @@ app.MapGet("/api/mtgjson/set/{setCode}/card/{cardName}",
         return Results.Ok(card);
     });
 
+
+
 // Temporary endpoint used to verify that EF Core can connect
 // successfully to our PostgreSQL database.
 //
@@ -96,6 +109,163 @@ app.MapGet("/api/database/test",
         }
 
         return Results.Ok("Database connection successful.");
+    });
+
+// Temporary endpoint used to import one MTGJSON set
+// into our PostgreSQL catalogue.
+//
+// The importer now returns a summary describing what was
+// processed and what new records were actually created.
+//
+// Example:
+// POST /api/mtgjson/import/FDN
+app.MapPost("/api/mtgjson/import/{setCode}",
+    async (
+        string setCode,
+        MtgJsonCatalogueImporter importer) =>
+    {
+        // Run the import and collect its statistics.
+        CatalogueImportResult result =
+            await importer.ImportSetAsync(setCode);
+
+        // Return the result directly as JSON.
+        return Results.Ok(result);
+    });
+
+// Temporary catalogue statistics endpoint.
+//
+// This lets us verify that an import created the expected
+// records in each catalogue table.
+//
+// Example:
+// GET /api/catalogue/stats
+app.MapGet("/api/catalogue/stats",
+    async (AppDbContext dbContext) =>
+    {
+        // Count the records currently stored in each
+        // of our catalogue tables.
+        int cardSetCount =
+            await dbContext.CardSets.CountAsync();
+
+        int cardCount =
+            await dbContext.Cards.CountAsync();
+
+        int printingCount =
+            await dbContext.Printings.CountAsync();
+
+        int variantCount =
+            await dbContext.PrintingVariants.CountAsync();
+
+        return Results.Ok(new
+        {
+            CardSets = cardSetCount,
+            Cards = cardCount,
+            Printings = printingCount,
+            PrintingVariants = variantCount
+        });
+    });
+
+// Temporary endpoint used to inspect catalogue data that has
+// actually been imported into PostgreSQL.
+//
+// Example:
+// GET /api/catalogue/card/Llanowar%20Elves
+app.MapGet("/api/catalogue/card/{cardName}",
+    async (string cardName, AppDbContext dbContext) =>
+    {
+        // Find the requested card and load its related printings,
+        // sets and physical language/finish variants.
+        Card? card = await dbContext.Cards
+            .AsNoTracking()
+            .Where(card =>
+                card.Name == cardName)
+            .Select(card => new Card
+            {
+                Id = card.Id,
+                Name = card.Name,
+                ScryfallOracleId = card.ScryfallOracleId
+            })
+            .FirstOrDefaultAsync();
+
+        if (card is null)
+        {
+            return Results.NotFound();
+        }
+
+        // Retrieve all printings belonging to this card.
+        var printings = await dbContext.Printings
+            .AsNoTracking()
+            .Where(printing =>
+                printing.CardId == card.Id)
+            .Select(printing => new
+            {
+                printing.Id,
+                printing.CollectorNumber,
+                printing.Rarity,
+
+                Set = printing.CardSet.Name,
+                SetCode = printing.CardSet.MtgJsonCode,
+
+                Variants = dbContext.PrintingVariants
+                    .Where(variant =>
+                        variant.PrintingId == printing.Id)
+                    .Select(variant => new
+                    {
+                        variant.Language,
+                        variant.Finish,
+                        variant.MtgJsonVersionId
+                    })
+                    .ToList()
+            })
+            .ToListAsync();
+
+        return Results.Ok(new
+        {
+            card.Id,
+            card.Name,
+            card.ScryfallOracleId,
+            Printings = printings
+        });
+    });
+
+// Temporary endpoint used to inspect MTGJSON's set list.
+//
+// This lets us verify the SetList model and see which
+// set types / online-only flags MTGJSON actually provides.
+//
+// Example:
+// GET /api/mtgjson/sets
+app.MapGet("/api/mtgjson/sets",
+    async (MtgJsonClient mtgJsonClient) =>
+    {
+        MtgJsonSetListResponse? response =
+            await mtgJsonClient.GetSetListAsync();
+
+        if (response is null)
+        {
+            return Results.NotFound(
+                "MTGJSON returned no set list.");
+        }
+
+        // Return a reduced view rather than dumping every
+        // property from every set.
+        var sets = response.Data
+            .Select(set => new
+            {
+                set.Code,
+                set.Name,
+                set.Type,
+                set.ReleaseDate,
+                set.IsOnlineOnly,
+                set.IsPaperOnly
+            })
+            .ToList();
+
+        return Results.Ok(new
+        {
+            Count = sets.Count,
+            Sets = sets
+        });
     });
 
 // Start the ASP.NET application.

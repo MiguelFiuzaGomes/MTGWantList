@@ -22,4 +22,15 @@ public class MtgJsonClient
         // to convert it directly into our C# model.
         return await _httpClient.GetFromJsonAsync<MtgJsonSetResponse>(url);
     }
+    
+    // Downloads and deserializes MTGJSON's list of available sets.
+//
+// We use this as the source for the future "import all sets"
+// process instead of hardcoding set codes.
+    public async Task<MtgJsonSetListResponse?> GetSetListAsync()
+    {
+        const string url = "https://mtgjson.com/api/v5/SetList.json";
+
+        return await _httpClient.GetFromJsonAsync<MtgJsonSetListResponse>(url);
+    }
 }
